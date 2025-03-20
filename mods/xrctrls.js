@@ -4,7 +4,7 @@ import {BoxBuilder} from './js/render/geometry/box-builder.js';
 import {PbrMaterial} from './js/render/materials/pbr.js';
 import {Node} from './js/render/core/node.js';
 import {UrlTexture} from './js/render/core/texture.js';
-import {BitNode} from './xrBit.js';
+import {BitNode} from './mods/xrBit.js';
 import {ImageTexture} from './js/render/core/texture.js';
 
 
@@ -108,7 +108,7 @@ export function createXRLorenzNode(b_x, b_y, b_z, b_w, b_h, itype, image)
   this.cnt = 0;
 
   for(let s = 0; s < this.num_points; s++){
-    let stick = new XRstick(renderer);
+    let stick = new XRstick();
     this.sticks[s]= stick ;
     scene.addNode(stick.node);
   }
@@ -132,10 +132,10 @@ export function createXRLorenzNode(b_x, b_y, b_z, b_w, b_h, itype, image)
     const b_y = this.bit.y;
     const b_w = this.bit.w;
     const b_h = this.bit.h;
-    const mapx = mapX2XR(b_x);
-    const mapy = mapY2XR(b_y);
     let mapw = mapW2XR(b_w);
     let maph = mapH2XR(b_h);
+    const mapx = mapX2XR(b_x);
+    const mapy = mapY2XR(b_y);
     let w = mapW2XR(15);
     let h = mapH2XR(50);
     // adjust flipped y offset
@@ -198,26 +198,26 @@ export function createXRLorenzNode(b_x, b_y, b_z, b_w, b_h, itype, image)
       return;
     }
     let i;
-        let x;
-        let y;
-        let z;
-        let c = ctrl.lcnt;
+    let x;
+    let y;
+    let z;
+    let c = ctrl.lcnt;
     let n = 0;
 // debugmsg("SP "+c+" "+ctrl.lmax);
     i=this.cnt;
-        while( i != c ){
-            x = ctrl.lpoints[i].x*ctrl.lscale + 200;
-            y = ctrl.lpoints[i].y*ctrl.lscale + 200;
-            z = (ctrl.lpoints[i].z)/ 45;
-            if( i != c){
-                this.lineTo(i, bit.x+x, bit.y+y, z);
-            }
+    while( i != c ){
+        x = ctrl.lpoints[i].x*ctrl.lscale + 200;
+        y = ctrl.lpoints[i].y*ctrl.lscale + 200;
+        z = (ctrl.lpoints[i].z)/ 45;
+        if( i != c){
+            this.lineTo(i, bit.x+x, bit.y+y, z);
+        }
       i++;
       if( i >= ctrl.lmax){
         i = 0;
       }
       n++;
-        }
+    }
     this.cnt = i;
 //    debugmsg("Num "+n);
   }
@@ -480,7 +480,7 @@ export function createXRPlayerNode(b_x, b_y, b_z, b_w, b_h, itype, image)
     if( this.sticks.length < numPoints){
       debugmsg("Player "+numPoints);
       for(let st = 0; st < numPoints; st++){
-        let stick = new  XRstick(renderer);
+        let stick = new  XRstick();
         this.sticks[st]= stick ;
         scene.addNode(stick.node);
       }
@@ -493,7 +493,7 @@ export function createXRPlayerNode(b_x, b_y, b_z, b_w, b_h, itype, image)
 
 }
 
-export function XRstick(renderer)
+export function XRstick()
 {
   let boxBuilder = new BoxBuilder();
   boxBuilder.pushBox([0.0, -0.05, -0.02], [0.1, 0.05, 0.02]);
@@ -520,6 +520,35 @@ export function XRstick(renderer)
     this.position = [x1, y1, z1];
     this.scale = [len*this.sf, this.sf/10, this.sf/10];
     this.rotation= [rx, ry, rz];
+    this.dirty = true;
+
+  }
+
+  this.setColor = function(rc,gc,bc,ac)
+  { let uniforms = this.renderPrimitive.uniforms;
+    uniforms.baseColorFactor.value = [rc, gc, bc, ac];
+  }
+
+  // stick
+  this.update = function(time)
+  { const d2r = Math.PI / 180;
+
+    let node = this.node;
+    if( this.dirty){
+      mat4.identity(node.matrix);
+      mat4.translate(node.matrix, node.matrix, this.position);
+      if( this.rotation[0] != 0){
+        mat4.rotateX(node.matrix, node.matrix, this.rotation[0] * d2r);
+      }
+      if(this.rotation[1] != 0){
+        mat4.rotateY(node.matrix, node.matrix, this.rotation[1] * d2r);
+      }
+      if( this.rotation[2] != 0){
+        mat4.rotateZ(node.matrix, node.matrix, this.rotation[2] * d2r);
+      }
+      mat4.scale(node.matrix, node.matrix, this.scale);
+      this.dirty = false;
+    }
 
   }
 
@@ -536,7 +565,7 @@ export function createXRWireNode(b_x, b_y, b_z, b_w, b_h, itype, image)
   this.ey = 0;
 
   for(let s = 0; s < 4; s++){
-    let stick = new XRstick(renderer);
+    let stick = new XRstick();
     this.sticks[s]= stick ;
     scene.addNode(stick.node);
   }
@@ -561,21 +590,7 @@ export function createXRWireNode(b_x, b_y, b_z, b_w, b_h, itype, image)
     this.setPath();
 
     for(let s=0; s < 3; s++){
-      let st = this.sticks[s];
-      let node = st.node;
-      mat4.identity(node.matrix);
-      mat4.translate(node.matrix, node.matrix, st.position);
-      if( st.rotation[0] != 0){
-        mat4.rotateX(node.matrix, node.matrix, st.rotation[0] * d2r);
-      }
-      if(st.rotation[1] != 0){
-        mat4.rotateY(node.matrix, node.matrix, st.rotation[1] * d2r);
-      }
-      if( st.rotation[2] != 0){
-        mat4.rotateZ(node.matrix, node.matrix, st.rotation[2] * d2r);
-      }
-  //    mat4.rotateX(node.matrix, node.matrix, 90 * Math.PI / 180);
-      mat4.scale(node.matrix, node.matrix, st.scale);
+      let st = this.sticks[s].update(time);
     }
 
   }
@@ -651,4 +666,199 @@ export function createXRWireNode(b_x, b_y, b_z, b_w, b_h, itype, image)
   }
 }
 
+// laser harp
+// frame and laser beams.
+function laser(lx, ly, lz )
+{ this.node = null;
+  this.sticks = [];
+  this.height = 2.0;
+  this.idx = 0;
+  this.selected = false;
+  this.hover = false;
 
+  this.position = [lx, ly, lz];
+  this.scale = [1.0, 1.0, 1.0];
+  this.rotation = [0, 0, 0];
+  this.dirty = false;
+
+  this.sticks[0] = new XRstick();
+  this.sticks[0].sf = 5;
+  this.sticks[0].node.selectable = true;
+  this.sticks[1] = new XRstick();
+  this.sticks[1].sf = 3;
+
+  this.frame = null;      // what this is a part of.
+
+  for(let s of this.sticks){
+    if( s.node != null){
+      scene.addNode(s.node);
+      s.node.visible = true;
+    }
+  }
+
+  this.onHoverStart = function()
+  { let us = this.laser;        // node is (this)
+    us.hover = true;
+    us.dirty = true;
+    if( us.frame != null){
+      us.frame.hover(1 + us.idx);
+    }
+  }
+
+  this.onHoverEnd = function()
+  { let us = this.laser;        // node is (this)
+    us.hover = false;
+    us.dirty = true;
+    us.frame.hover(0);
+  }
+
+  this.hitTest = function(hit)
+  { 
+    this.selected = false;
+    if( this.sticks[0].node == hit){
+      debugmsg("Hit laser "+this.idx);
+      this.selected = true;
+    }
+  }
+  
+  this.update = function(time)
+  { let lx = this.position[0];
+    let ly = this.position[1];
+    let lz = this.position[2];
+
+    if( this.dirty == false){
+//      debugmsg("L not dirty");
+      return;
+    }
+
+    let sel = isSelecting();
+
+    this.sticks[0].setStick(lx, ly, lz, this.height*1.9, 0, 0, 90);
+    this.sticks[1].setStick(lx, ly+this.height-0.1, lz, 200.0, 0, 180, 0);
+    if( this.hover && !this.selected && sel == 0){
+      this.sticks[0].setColor( 1.0, 1.0, 1.0, 1.0);   // white
+      this.sticks[1].setColor( 1.0, 1.0, 1.0, 1.0);
+    }else if((this.hover && sel != 0) || this.selected){
+      this.sticks[0].setColor( 0.0, 0.0, 1.0, 0.9);   // blue
+      this.sticks[1].setColor( 0.0, 0.0, 1.0, 0.9);
+    }else {
+      this.sticks[0].setColor( 1.0, 0.0, 0.0, 0.5);   // red
+      this.sticks[1].setColor( 1.0, 0.0, 0.0, 0.5);
+    }
+
+    for(let s of this.sticks){
+//      debugmsg("L up stick "+s.position[0]+" "+s.position[1]);
+      s.update(time);
+    }
+
+    this.dirty = false;
+
+  }
+
+  this.sticks[0].node.onHoverStart = this.onHoverStart;
+  this.sticks[0].node.laser = this;
+  this.sticks[0].node.onHoverEnd = this.onHoverEnd;
+  
+}
+
+export function createXRHarpNode(b_x, b_y, b_z, b_w, b_h, itype, image)
+{
+    this.frame = [];
+    this.lasers = [];
+    this.numBeams = 7;
+    this.spread = 0.2;
+
+    this.position = [b_x-2, b_y, b_z];
+    this.scale = [1.0, 1.0, 1.0];
+    this.rotation = [0, 0, 0];
+    this.selected = false;
+    this.bit = null;
+
+    let node;
+
+    for(let i=0 ; i < this.numBeams; i++){
+      this.lasers[i] = new laser( this.position[0] +(i- this.numBeams / 2)*this.spread, this.position[1], this.position[2]);
+      node = this.lasers[i].node;
+      if( node != null){
+        scene.addNode( node);
+      }
+      this.lasers[i].idx = i;   // for angle spread.
+    }
+    // frame
+    this.frame[0] = new XRstick();
+    this.frame[1] = new XRstick();
+    this.frame[2] = new XRstick();
+    for(let f of this.frame){
+      scene.addNode(f.node);
+    }
+
+    this.visible = function( mode)
+    {
+
+    }
+
+    // harp (.bnode)
+    this.hover = function(idx){
+      // called when a laser is hovered
+      let sel = isSelecting();
+
+      if( idx > 0 && sel > 0){
+        // selecting and hover
+        if( this.bit != null){
+          this.bit.ctrl.setValue(idx, 1+sel);    // send value to bit. sel ==1 for lefthand and 2 for right hand.
+        }else {
+          debugmsg("bit is null");
+        }
+      }
+    }
+
+    this.hitTest = function(hit)
+    {
+      let s;
+
+      for(s of this.lasers){
+        s.selected = false;
+        if(s.hitTest(hit) ){
+          s.selected = true;
+          return true;
+        }
+      }
+  
+    }
+  
+    this.update = function(time)
+    { let node;
+      const b_x = this.bit.x;
+      const b_y = this.bit.y;
+      const b_w = this.bit.w;
+      const b_h = this.bit.h;
+      let mapw = mapW2XR(b_w);
+      let maph = mapH2XR(b_h);
+      const mapx = mapX2XR(b_x)-4;
+      const mapy = mapY2XR(b_y);
+      let b_z = this.position[2]+1;
+  
+      for(let l of this.lasers){
+        l.position = [ mapx , mapy, b_z+(l.idx- this.numBeams / 2)*this.spread];
+        l.dirty = true;
+        l.update(time);
+      }
+      this.frame[0].setStick(mapx, mapy, b_z +(-2 - this.numBeams / 2)*this.spread, 2.0, 0, 0, 90);
+      this.frame[0].setColor( 1.0, 0.0, 0.0, 1.0);
+      this.frame[1].setStick(mapx , mapy, b_z+( 2 + (this.numBeams-2) / 2)*this.spread, 2.0, 0, 0, 90);
+      this.frame[2].setStick(mapx , mapy+2, b_z+(-2 - this.numBeams / 2)*this.spread, (this.numBeams+3)*this.spread, 0, -90, 0);
+      this.frame[2].setColor( 0.0, 0.0, 1.0, 1.0);
+      for(let f of this.frame){
+//        debugmsg("H up frame "+f.position[0]+" "+f.position[1]);
+        f.update(time);
+      }
+  
+    }
+  
+    this.remove = function()
+    {
+
+    }
+
+
+}

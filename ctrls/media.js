@@ -422,4 +422,93 @@ function sampler(ctrl)
 
 }
 
+harp.prototype = Object.create(control.prototype);
+
+function harp(bit)
+{	control.call(this, bit);
+	this.values = [];
+	this.octave = 60;
+	this.value = 0;
+
+	this.setValue = function(data, chan)
+	{	const bit = this.bit;
+		const note = 2*data;
+
+		if( note > 0){
+			note += this.octave;
+		}
+
+		if( chan >= 2){
+			this.values[0] = 1*note;
+			bit.value = this.values[0];
+			return;
+		}
+	}
+
+	this.getValue = function(chan)
+	{
+		return this.value;
+	}
+
+	this.setData = function()
+	{	let msg="";
+        let tl;
+        let n;
+        let style = "";
+
+		if( bitform != null){
+			bitform.innerHTML="";
+		}
+		bitform = document.getElementById("bitform");
+		if( bitform != null){
+			msg = "<table>";
+			msg += "<tr><th>Octave</th><td><input type='text' value='"+this.octave+"' size='3' id='octave' onchange='UIrefresh(1, 0);'  /></td></tr>\n";
+			msg += "</table>\n";
+
+			bitform.innerHTML = msg;
+			bitformaction = this;
+			this.prog = 0;
+		}
+
+    }
+
+	this.getData = function()
+	{	let i = 0;
+		let f = null;
+		let val = 0;
+		let s = new saveargs();
+
+		s.addarg("control");
+		s.addarg( "harp");
+
+		f = document.getElementById("octave");
+        if( f != null){
+            s.addarg("octave");
+            s.addarg(f.value);
+        }
+		this.doLoad( s.getdata(), 0);
+	}
+
+	this.doLoad = function(initdata, idx)
+	{	var len = initdata[idx];
+		let n = 1;
+		let param="";
+		let val = "";
+
+		for(n = 1; n < len ; n += 2){
+			param = initdata[idx+n];
+		    val = initdata[idx+n+1];
+
+			if( param == "'control'"){
+				continue;
+			}
+			if( param == "octave"){
+				this.octave = checkRange(val);
+			}
+		}
+
+	}
+
+}
+
 

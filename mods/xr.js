@@ -35,9 +35,9 @@ import {PbrMaterial} from './js/render/materials/pbr.js';
 import {mat4, vec3} from './js/render/math/gl-matrix.js';
 import {Ray} from './js/render/math/ray.js';
 import WebXRPolyfill from './js/third-party/webxr-polyfill/build/webxr-polyfill.module.js';
-// import { scale, set } from './js/third-party/gl-matrix/src/gl-matrix/mat2.js';
+import { scale, set } from './js/third-party/gl-matrix/src/gl-matrix/mat2.js';
 import {createXRLorenzNode,  createXRMandelNode, createXRPlayerNode, createXRWireNode, map2Dto3D, 
-  mapX2XR, mapY2XR, mapW2XR, mapH2XR, xrBox, bitBuilder, setCtrlScene} from './mods/xrctrls.js';
+  mapX2XR, mapY2XR, mapW2XR, mapH2XR, xrBox, bitBuilder, setCtrlScene, createXRHarpNode} from './mods/xrctrls.js';
 
 
 'use strict';
@@ -381,7 +381,9 @@ function onXRSessionEnded(event)
 function  onXRSelectStart(ev) 
 { const frame = ev.frame;
   const session = frame.session;
+  let i = (ev.inputSource.handedness == "left") ? 0 : 1;
 
+  setSelecting(1+i);
   let refSpace = ev.frame.session.isImmersive ? getRefSpace(session, true) : xrInlineRefSpace;
 
     let headPose = ev.frame.getPose(xrViewerSpaces[session.mode], refSpace);
@@ -399,7 +401,6 @@ function  onXRSelectStart(ev)
 
   let targetRayPose = ev.frame.getPose(ev.inputSource.targetRaySpace, refSpace);
   if (!targetRayPose) {
-    debugmsg("no target start");
     return;
   }
 
@@ -411,26 +412,7 @@ function  onXRSelectStart(ev)
    // Check to see if the hit result was one of our boxes.
 
     for(let bit of bits){
-      let s;
-      bit.selected = false;
-      if (hitResult.node == bit.node) {
-        bit.selected = true;
-      }
-      for(s = 0; s < bit.snaps.length; s++){
-        if( bit.snaps[s] != null){
-          let sn = bit.snaps[s];
-          if (hitResult.node == sn.node) {
-            bit.selected = true;
-          }
-        }
-      }
-      for(s of bit.knobs){
-        s.selected = false;
-        if( hitResult.node == s.node){
-          s.selected = true;
-          bit.selected = true;
-        }
-      }
+      bit.hitTest(hitResult.node);
     }
     if (hitResult.node == floorNode) {
       // New position uses x/z values of the hit test result, keeping y at 0 (floor level)
@@ -459,13 +441,9 @@ function  onXRSelectStart(ev)
 function onXRSelectEnd(ev) {
   let i = (ev.inputSource.handedness == "left") ? 0 : 1;
 
-
   for(let bit of bits){
-    if( bit.selected){
-      bit.selected = false;
-      debugmsg("Bit select end "+bit.bit.name);
-      break;
-    }
+    setSelecting(0);
+    bit.hitTest(null);
   }
 }
 
@@ -475,32 +453,38 @@ function onXRSelect(ev) {
   let refSpace = ev.frame.session.isImmersive ? getRefSpace(session, true) : xrInlineRefSpace;
 
   let headPose = ev.frame.getPose(xrViewerSpaces[session.mode], refSpace);
-  if (!headPose) return;
-
-  // Get the position offset in world space from the tracking space origin
-  // to the player's feet. The headPose position is the head position in world space.
-  // Subtract the tracking space origin position in world space to get a relative world space vector.
-  vec3.set(playerInWorldSpaceOld, headPose.transform.position.x, 0, headPose.transform.position.z);
-  vec3.sub(
-    playerOffsetInWorldSpaceOld,
-    playerInWorldSpaceOld,
-    trackingSpaceOriginInWorldSpace);
+  if (headPose){
+    // Get the position offset in world space from the tracking space origin
+    // to the player's feet. The headPose position is the head position in world space.
+    // Subtract the tracking space origin position in world space to get a relative world space vector.
+    vec3.set(playerInWorldSpaceOld, headPose.transform.position.x, 0, headPose.transform.position.z);
+    vec3.sub(
+      playerOffsetInWorldSpaceOld,
+      playerInWorldSpaceOld,
+      trackingSpaceOriginInWorldSpace);
+  }
 
   // based on https://github.com/immersive-web/webxr/blob/master/input-explainer.md#targeting-ray-pose
+  // let targetRayPose = ev.frame.getPose(ev.inputSource.targetRaySpace, refSpace);
   let inputSourcePose = ev.frame.getPose(ev.inputSource.targetRaySpace, refSpace);
   if (!inputSourcePose) {
     return;
   }
+  
+  // Hit test results can change teleport position and orientation.
+  let hitResult = scene.hitTest(inputSourcePose.transform);
+  if( hitResult != null){
+    setSelecting(1+i);
+    for(let bit of bits){
+      bit.hitTest(hitResult.node);
+    }
+  }
 
   // teleport
-
   if( floorNode != null)
   {
     vec3.copy(playerInWorldSpaceNew, playerInWorldSpaceOld);
     let rotationDelta = 0;
-
-  // Hit test results can change teleport position and orientation.
-  let hitResult = scene.hitTest(inputSourcePose.transform);
 
   if( hitResult != null){
     if (hitResult.node == floorNode) {
@@ -895,6 +879,7 @@ function createXRBitNode(b_x, b_y, b_z, b_w, b_h, itype, image)
   this.scale = [b_w, b_h, 1.0];
   this.dragPos = null;
   this.grabbed = false;
+  this.selected = false;
 
   // Create a button that plays the video when clicked.
   this.node = new BitNode(this.texture, () => {
@@ -909,6 +894,16 @@ function createXRBitNode(b_x, b_y, b_z, b_w, b_h, itype, image)
     }
     return old;
   }
+
+  this.hitTest = function(hit)
+  {
+    this.selected = false;
+    if( this.node == hit){
+      this.selected = true;
+    }
+    return this.selected;
+  }
+
 }
 
 function createXRSelNode(b_x, b_y, b_z, b_w, b_h, color)
@@ -1037,7 +1032,7 @@ function xrKnob()
     if( ctrl == null){
       return;
     }
-    ctrl.values[0] = (time%2000) / 8;
+    // ctrl.values[0] = (time%2000) / 8;
     let ac = ctrl.getstep();
 
 
@@ -1160,7 +1155,7 @@ function createXRBit(bit)
 
   this.addSnaps();
   
-  let img = "control.png";
+  let img = null;
 
   if( bit.ctrl != null){  
     this.ctrl = bit.ctrl;
@@ -1173,6 +1168,8 @@ function createXRBit(bit)
     if( bit.code != MIDIPLAYER && bit.code != 64){
       this.addKnobs();
     }
+  }else if(bit.bitname != null){
+    img = bit.bitname+".png";
   }
 
   if( bit.code == WIRE)
@@ -1184,14 +1181,25 @@ function createXRBit(bit)
     debugmsg("player");
     this.bnode = new createXRPlayerNode(mapx, mapy-ah, -2.1, mapw, maph, 1, "resources/bits/"+img);
     this.bnode.bit = bit;
-  }else if( bit.code == 64){
+  }else if( bit.code == MANDELBROT){
     debugmsg("Mandelbrot");
     this.bnode = new createXRMandelNode(mapx, mapy-ah, -2.1, mapw, maph, 0, "resources/bits/"+img);
     this.bnode.bit = bit;
-  }else if( bit.code == 65){
+  }else if( bit.code == LORENZ){
     debugmsg("Lorenz 2");
     this.bnode = new createXRLorenzNode(mapx, mapy-ah, -2.1, mapw, maph, 1, "resources/bits/"+img);
     this.bnode.bit = bit;
+  }else if( bit.code == HARP){
+    debugmsg("harp");
+    this.bnode = new createXRHarpNode(mapx, mapy-ah, -2.1, mapw, maph, 1, "resources/bits/"+img);
+    this.bnode.bit = bit;
+    // link lasers to frame
+    for(let l of this.bnode.lasers){
+      l.frame = this.bnode;
+    }
+  }
+  if( img == null){
+    img = "control.png";
   }
 
   debugmsg("XR img="+img);
@@ -1247,6 +1255,41 @@ function createXRBit(bit)
 
   }
 
+  this.hitTest = function(hit)
+  {
+    let s;
+    let node = this.bnode;
+
+    if( node != null){
+      node.hitTest(hit);
+
+      if(node.node == hit){
+        this.selected = true;
+        debugmsg("HIT BIT "+this.bit.name);
+        return true;
+      }
+    }
+
+    for(s = 0; s < this.snaps.length; s++){
+      if( this.snaps[s] != null){
+        let sn = this.snaps[s];
+        if (hit == sn.node) {
+          this.selected = true;
+          debugmsg("HIT snap "+s+" "+this.bit.name);
+          return true;
+        }
+      }
+    }
+    for(s of this.knobs){
+      s.selected = false;
+      if( hit == s.node){
+        s.selected = true;
+        this.selected = true;
+        return true;
+      }
+    }
+    return false;
+  }
 
   // has the bit moved? 
   this.update = function(time)
@@ -1696,52 +1739,6 @@ function xrBit(bit)
 
   }    
 
-  // readpixel mostly returns black
-  // tried a hack looking for non 0 red values.
-  this.fetchImage = function()
-  { let n, iy;
-    const b = this.bit;
-    let r=0;
-
-    if(xrOK){
-      return;
-    }
-    this.keepimage = false;
-    let pixels = new Uint8Array( 4*b.w*b.h);
-    
-    pixels[0] = 128;
-    gl.readPixels(b.x,xrHeight-b.y, b.w, b.h, gl.RGBA, gl.UNSIGNED_BYTE, pixels );
-
-    this.image = ctx.createImageData(b.w, b.h);
-
-    n = 0;
-    iy = 0;
-    let ix = this.image.data.length;
-    ix -= 4*b.w;
-
-    while( iy < this.image.data.length){
-      this.image.data[iy+0] = pixels[ix+0];
-      if( pixels[iy+0] > r){
-        r = pixels[iy+0];
-      }
-      this.image.data[iy+1] = pixels[ix+1];
-      this.image.data[iy+2] = pixels[ix+2];
-      this.image.data[iy+3] = 255;	// alpha
-      iy += 4;
-      ix += 4;
-      n++;
-      if( n == b.w){
-        n = 0;
-        ix -= 8*b.w;
-      }
-    }
-    if( r > 0){
-//      debugmsg("fetch image("+iy+") r="+r+" "+b.x+" "+b.y+" "+b.w);
-      this.keepimage = true;
-    }
-
-
-  }
 
     // Called every time the XRSession requests that a new frame be drawn.
   this.setData = function()

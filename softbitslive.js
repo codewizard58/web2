@@ -54,8 +54,15 @@ const LOGICOR=17;
 const LOGICNOT=18;
 const LOGICNAND = 19;
 const LOGICNOR = 20;
+
 const ARITHPLUS=36;
 const ARITHMINUS=37;
+
+const MANDELBROT = 64;
+const LORENZ = 65;
+const HARP = 66;
+const HEADSET = 76;
+
 const ENDPROG=255;
 const WIRE = 109;
 const CORNER = 110;
@@ -902,9 +909,9 @@ var bytecode = [
 	null,
 
 
-	[ 4, 6, 5, 0, 9, 12, 3, 28, 0],		// 64 Mandlebrot  arg2? if exit fi setv 1 setv 2 getv [28] white]
+	[ 4, 6, 5, 0, 9, 12, 3, 28, 0],		// 64 Mandelbrot  arg2? if exit fi setv 1 setv 2 getv [28] white]
 	[ 4, 6, 5, 0, 9, 12, 3, 28, 0],		// 65 Lorenz  arg2? if exit fi setv 1 setv 2 getv [28] white]
-	null,
+	[ 5, 0, 3, 28, 40, 41, 0],			// 66 harp
 	null,
 
 	null,
@@ -4507,3 +4514,5 @@ function loadInitString(data)
 	return loadInitData( initData);
 
 }
+
+

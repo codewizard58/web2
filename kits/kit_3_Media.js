@@ -9,7 +9,7 @@ kit_media.prototype = Object.create(sbmodule.prototype);
 function kit_media()
 {	
 	sbmodule.call(this, "Media");
-	// image name w h snap-l snap-r snap-t ansp-b  ? ctrl title desc domain ? ?
+	// image name w h snap-l snap-r snap-t snap-b  code ctrl title desc domains group ? ?
 
 	this.bitnames = [
 		"poweron", "power_on", 50, 50,		null, "powerout", null, null,			// 0
@@ -17,7 +17,9 @@ function kit_media()
 		"poweroff", "power_off", 50, 50,	"powerin", null, null, null,			// 1
 				2,	0, "Power Off",		"End of a chain, optional.", 0x0001, "Power", 0, 1,	// 1
         "control", "headset", 200, 200,	"actionin", null ,null,  null,		// 0
-				121,	1, "Headset",	"Virtual Reality",	 0x001, "Action", 0, 1,	// 0
+				HEADSET,	1, "Headset",	"Virtual Reality",	 0x001, "Action", 0, 1,	// 0
+		"control", "harp", 200, 200,	"actionin", "actionout" ,null,  null,		// 0
+				HARP,	2, "Harp",	"Laser Harp",	 0x011, "Input", 0, 1,	// 0
 		
         null, null, null, null,				null, null, null, null
     ];
@@ -47,13 +49,18 @@ function kit_media()
 		let f;
 
         // found control
-		if( ctrl == 1){
+		if( ctrl == 1){		// headset
 			mediaData = bit;
 			if( mediaFunc != null){
 				mediaFunc(1);
 			}
 
 			return null;
+		}else if( ctrl == 2){
+			ct = new harp(bit);
+			bit.ctrl = ct;
+			ct.setData();
+			return ct;
         }
 
         return null;
@@ -86,8 +93,23 @@ function kit_media()
 
 }
 
+
+// XR helper routines
+// these are in global scope
+//
 var mediaData = null;
 var mediaFunc = null;
+let selecting = 0;
+
+function setSelecting(s)
+{
+	selecting = s;
+}
+
+function isSelecting()
+{
+	return selecting;
+}
 
 function mediaGetBit()
 {	
