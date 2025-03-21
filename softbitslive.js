@@ -911,7 +911,7 @@ var bytecode = [
 
 	[ 4, 6, 5, 0, 9, 12, 3, 28, 0],		// 64 Mandelbrot  arg2? if exit fi setv 1 setv 2 getv [28] white]
 	[ 4, 6, 5, 0, 9, 12, 3, 28, 0],		// 65 Lorenz  arg2? if exit fi setv 1 setv 2 getv [28] white]
-	[ 5, 0, 3, 28, 40, 41, 0],			// 66 harp
+	[ 5, 0, 9, 3, 28, 40, 41, 0],		// 66 harp [9] ctrl.setValue(data, 0)
 	null,
 
 	null,
@@ -3704,7 +3704,7 @@ function Sketch() {
 		}
 
 		if( curctrl != null){
-			curctrl.onMove(mx, my);
+			curctrl.onMove();
 			sx = 0;				// if control selected then not dragging...
 			sy = 0;
 			ldrag = null;

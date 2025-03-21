@@ -1520,26 +1520,29 @@ function addInlineViewListeners(canvas) {
   canvas.addEventListener('mousedown', (event) => {
     // Only rotate when the right button is pressed
     canvas.focus();
-    event.preventDefault();
     xrGetXY(event);
     sketch.doMouseDown();
+    event.preventDefault();
+    event.stopPropagation();
 
   });
 
   canvas.addEventListener('mouseup', (event) => {
-    event.preventDefault();
     xrGetXY(event);
     sketch.doMouseUp();
+    event.stopPropagation();
+    event.preventDefault();
   });
 
   canvas.addEventListener('mousemove', (event) => {
-    event.preventDefault();
     if ( (event.buttons & 2) == 2) {
       rotateView(event.movementX, event.movementY);
     }else{
       xrGetXY(event);
       sketch.doMouseMove();
     }
+    event.preventDefault();
+    event.stopPropagation();
   });
 
   canvas.addEventListener('wheel', (event) => {

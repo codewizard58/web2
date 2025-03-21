@@ -427,29 +427,137 @@ harp.prototype = Object.create(control.prototype);
 function harp(bit)
 {	control.call(this, bit);
 	this.values = [];
-	this.octave = 60;
+	this.octave = 5;			// C5
+	this.scale = -1;
 	this.value = 0;
+	this.notes = [];
+	this.numBeams = 7;
+	this.curnote = 0;		// 1 offset
+	this.transport = new transport();
+    this.gate = 128;
+	this.step = 0;
+	this.prevdata = new delta();
+
+	this.prevdata.changed(-1);
+
 
 	this.setValue = function(data, chan)
 	{	const bit = this.bit;
-		const note = 2*data;
+		let note = 1*data;
+		let beat ;
+		let step;
+        let gate = Math.floor(this.gate / 4);
 
-		if( note > 0){
-			note += this.octave;
+		if(chan == 0){
+			if( data == 255){     // transport run
+                if( this.prevdata.changed(data)){
+                    if( this.transport.mode == 0 ){      // local mode
+                        this.transport.resume();
+                    }else {
+                    // skip to where we should be.
+                   }
+                }
+
+				this.step = this.transport.getValue();
+				this.transport.trigger = 0;			// show that the transport is still being used.
+
+				execmode = 2;
+				beat = this.transport.getBeat();
+				step = Math.floor(this.step %  Math.floor(256 / 4) );
+//	 debugmsg("Beat "+beat+" "+step);
+				if( step > gate){
+					bit.value = 0;
+				}
+			}
 		}
 
 		if( chan >= 2){
+			if( note > 0){
+				note = note -1;				// was 1 offset.
+				if( this.notes.length > note){
+					note = this.notes[note];
+				}
+				note += 12*this.octave;
+				if( chan == 2){
+					note -= 12;		// one octave in semitones.
+				}
+				note = note*2;		// semitone to values
+
+				this.transport.localStop();
+				this.transport.localResume();
+			}
+
 			this.values[0] = 1*note;
-			bit.value = this.values[0];
+			bit.value = checkRange(note);
+			this.curnote = data;
 			return;
 		}
 	}
 
 	this.getValue = function(chan)
 	{
-		return this.value;
+		return this.bit.value;
 	}
 
+	this.setScale = function(mode)
+	{
+		if( this.scale == mode){
+			return;
+		}
+		debugmsg("setscale "+mode);
+	}
+
+	//harp
+	this.HitTest = function(x, y)
+	{	let res = null;
+		let b = this.bit;
+		let border = 10;
+
+//		debugmsg("HT "+x+" "+y+" X="+b.x+" Y="+b.y+" w "+b.w+" h "+b.h);
+		if( b == null){
+			return null;
+		}
+		if( (x >= b.x+border) && x <= (b.x+b.w-border) &&
+		    y >= (b.y+border) && y <= (b.y+b.h-border)){
+			res = this;
+		}
+		if( res == null){
+			return null;
+		}
+		// 
+		return res;
+	}
+
+
+
+
+	// harp
+	this.Draw = function( )
+	{	const b = this.bit;
+		let w = b.w;
+		let nw = Math.floor((w-15)/ this.numBeams);
+		let h = b.h -20;
+
+		if( b == null){
+			return;
+		}
+        ctx.fillStyle = "#000000";
+		ctx.fillRect(b.x, b.y, b.w, b.h);
+
+        ctx.fillStyle = "#ffffff";
+		for(let i=0; i < this.numBeams; i++){
+			if( this.curnote -1 == i){
+				ctx.fillStyle = "#ff0000";
+				ctx.fillRect(b.x+i*nw+10, b.y+10, nw-5, h);
+				ctx.fillStyle = "#ffffff";
+			}else {
+				ctx.fillRect(b.x+i*nw+10, b.y+10, nw-5, h);
+			}
+		}
+		
+	}
+		
+	// harp
 	this.setData = function()
 	{	let msg="";
         let tl;
@@ -462,6 +570,20 @@ function harp(bit)
 		bitform = document.getElementById("bitform");
 		if( bitform != null){
 			msg = "<table>";
+			msg += "<tr><th>Scale</th><td><select id='scale' onchange='UIrefresh(1, 0);' >";
+			msg += "<option value='0' "+isSelected(this.scale, 0)+">Major</option>";
+			msg += "<option value='1' "+isSelected(this.scale, 1)+">Minor</option>";
+			msg += "<option value='2' "+isSelected(this.scale, 2)+">Pentatonic</option>";
+			msg +="</select></td></tr>\n";
+			msg += "<tr><th>Beams</th><td><select id='beams' onchange='UIrefresh(1, 0);' >";
+			msg += "<option value='7' "+isSelected(this.numBeams, 7)+">7</option>";
+			msg += "<option value='9' "+isSelected(this.numBeams, 9)+">9</option>";
+			msg += "<option value='11' "+isSelected(this.numBeams, 11)+">11</option>";
+			msg +="</select></td></tr>\n";
+			msg += "<tr><td colspan='4'>"+this.transport.setData()+"</td></tr>\n";
+			msg += "<tr><th>Gate</th><td ><input type='text' id='gate' value='"+this.gate+"'  size='4'  onchange='UIrefresh(1, 0);' /></td>";
+            msg += "</tr>\n";
+
 			msg += "<tr><th>Octave</th><td><input type='text' value='"+this.octave+"' size='3' id='octave' onchange='UIrefresh(1, 0);'  /></td></tr>\n";
 			msg += "</table>\n";
 
@@ -472,6 +594,7 @@ function harp(bit)
 
     }
 
+	//harp
 	this.getData = function()
 	{	let i = 0;
 		let f = null;
@@ -486,6 +609,27 @@ function harp(bit)
             s.addarg("octave");
             s.addarg(f.value);
         }
+		f = document.getElementById("scale");
+        if( f != null){
+            s.addarg("scale");
+            s.addarg(f.value);
+        }
+		f = document.getElementById("beams");
+        if( f != null){
+            s.addarg("beams");
+            s.addarg(f.value);
+        }
+		f = document.getElementById("tempo");
+        if( f != null){
+            s.addarg("tempo");
+            s.addarg(f.value);
+        }
+        f = document.getElementById("gate");
+        if( f != null){
+            s.addarg("gate");
+            s.addarg(f.value);
+        }
+
 		this.doLoad( s.getdata(), 0);
 	}
 
@@ -503,12 +647,72 @@ function harp(bit)
 				continue;
 			}
 			if( param == "octave"){
-				this.octave = checkRange(val);
+				this.octave = checkRange(1*val);
 			}
+			if( param == "scale"){
+				this.setScale(val);
+			}
+			if( param == "beams"){
+				this.numBeams = 1*val;
+			}
+			
 		}
 
 	}
 
+
+	// harp
+	this.setTempo = function(tempo)
+    {
+        this.transport.setTempo(tempo, 4);
+    }
+
+
+
+	// harp
+	this.startMove = function()
+	{	let b = this.bit;
+		let ix = Math.floor((mx - b.x -10) );
+		let iy = Math.floor((my - b.y -10) );
+		let w = b.w;
+		let nw = Math.floor((w-15)/ this.numBeams);
+		let h = b.h -20;
+		let idx = Math.floor( ix/nw);
+
+
+		if( b == null){
+			return;
+		}
+
+//		debugmsg("Harp move "+ix+" "+iy+" "+nw+" "+idx);
+		this.setValue(idx+1, 3);			// 1 offset
+
+
+	}
+
+	this.onMove = function()
+	{	let b = this.bit;
+		let ix = Math.floor((mx - b.x -10) );
+		let iy = Math.floor((my - b.y -10) );
+		let w = b.w;
+		let nw = Math.floor((w-15)/ this.numBeams);
+		let h = b.h -20;
+		let idx = Math.floor( ix/nw);
+
+		if( b == null){
+			return;
+		}
+//		debugmsg("Harp on move "+ix+" "+iy+" "+nw+" "+idx);
+		this.setValue(idx+1, 3);			// 1 offset
+	}
+
+	// init stuff
+	this.setTempo(120);
+	this.transport.resume();
+
+    timer_list.addobj(this.transport, null);
+	this.transport.name = "Harp-transport";		// for debugging
+
 }
 
-
+//

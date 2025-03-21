@@ -367,7 +367,7 @@ function graphBit(bit)
 		}
 	}
 
-	this.onMove = function(mx, my)
+	this.onMove = function()
 	{	var b = this.bit;
 		var bt;
 		let x = mx-b.x;

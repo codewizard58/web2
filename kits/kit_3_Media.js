@@ -16,9 +16,9 @@ function kit_media()
 				0,	0, "Power On",		"Start a chain of SoftBits", 0x0010, "Power", 0, 1,	// 0
 		"poweroff", "power_off", 50, 50,	"powerin", null, null, null,			// 1
 				2,	0, "Power Off",		"End of a chain, optional.", 0x0001, "Power", 0, 1,	// 1
-        "control", "headset", 200, 200,	"actionin", null ,null,  null,		// 0
+        "control", "headset", 100, 50,	"actionin", null ,null,  null,		// 0
 				HEADSET,	1, "Headset",	"Virtual Reality",	 0x001, "Action", 0, 1,	// 0
-		"control", "harp", 200, 200,	"actionin", "actionout" ,null,  null,		// 0
+		"control", "harp", 100, 100,	"actionin", "actionout" ,null,  null,		// 0
 				HARP,	2, "Harp",	"Laser Harp",	 0x011, "Input", 0, 1,	// 0
 		
         null, null, null, null,				null, null, null, null

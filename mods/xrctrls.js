@@ -682,7 +682,7 @@ function laser(lx, ly, lz )
   this.dirty = false;
 
   this.sticks[0] = new XRstick();
-  this.sticks[0].sf = 5;
+  this.sticks[0].sf = 8;
   this.sticks[0].node.selectable = true;
   this.sticks[1] = new XRstick();
   this.sticks[1].sf = 3;
@@ -701,7 +701,7 @@ function laser(lx, ly, lz )
     us.hover = true;
     us.dirty = true;
     if( us.frame != null){
-      us.frame.hover(1 + us.idx);
+      us.frame.hover(1 + 1*us.idx);
     }
   }
 
@@ -716,7 +716,7 @@ function laser(lx, ly, lz )
   { 
     this.selected = false;
     if( this.sticks[0].node == hit){
-      debugmsg("Hit laser "+this.idx);
+//      debugmsg("Hit laser "+this.idx);
       this.selected = true;
     }
   }
@@ -733,7 +733,7 @@ function laser(lx, ly, lz )
 
     let sel = isSelecting();
 
-    this.sticks[0].setStick(lx, ly, lz, this.height*1.9, 0, 0, 90);
+    this.sticks[0].setStick(lx, ly, lz, this.height*(10/8)*0.95, 0, 0, 90);
     this.sticks[1].setStick(lx, ly+this.height-0.1, lz, 200.0, 0, 180, 0);
     if( this.hover && !this.selected && sel == 0){
       this.sticks[0].setColor( 1.0, 1.0, 1.0, 1.0);   // white
@@ -800,14 +800,16 @@ export function createXRHarpNode(b_x, b_y, b_z, b_w, b_h, itype, image)
     // harp (.bnode)
     this.hover = function(idx){
       // called when a laser is hovered
-      let sel = isSelecting();
+      let sel = 1*isSelecting();
 
-      if( idx > 0 && sel > 0){
+      if(  sel > 0){
         // selecting and hover
         if( this.bit != null){
-          this.bit.ctrl.setValue(idx, 1+sel);    // send value to bit. sel ==1 for lefthand and 2 for right hand.
-        }else {
-          debugmsg("bit is null");
+
+          this.bit.ctrl.numBeams = this.numBeams;
+          if( idx != 0){        // keep value use gate to mute sound.
+            this.bit.ctrl.setValue(this.numBeams - (idx-1), 1+sel);    // send value to bit (1 offset). sel ==1 for lefthand and 2 for right hand. reverse order.
+          }
         }
       }
     }
