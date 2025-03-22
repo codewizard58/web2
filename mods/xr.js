@@ -46,6 +46,8 @@ import {createXRLorenzNode,  createXRMandelNode, createXRPlayerNode, createXRWir
  var xrOK = false;
  var xrCtrl = null;
  let xrRunning = false;
+ let xrSelectedKnob = null;   // the selected knob
+ let xrCurZ = [0, 0];
 
 // Called when the user clicks the button to enter XR. If we don't have a
 // session we'll request one, and if we do have a session we'll end it.
@@ -612,7 +614,7 @@ function onXRFrame (time, frame) {
 
   let refSpace = session.isImmersive ?  getRefSpace(session, true) : xrInlineRefSpace;
 
-  if (!session.isImmersive) {
+  if (!session.isImmersive ) {
     refSpace = getAdjustedRefSpace(refSpace);
   }
 
@@ -626,6 +628,7 @@ function onXRFrame (time, frame) {
   // check if we can move grabbed objects
   for (let inputSource of frame.session.inputSources) 
   {
+    let i = (inputSource.handedness == "left") ? 0 : 1;
     n++;
 
     let gamepad = inputSource.gamepad;
@@ -649,36 +652,53 @@ function onXRFrame (time, frame) {
         debugmsg("gamepad "+msg+" "+(buttons ? buttons.length: 0));
       }
     }
+    if (inputSource.gripSpace) {
+      const gripPose = frame.getPose(inputSource.gripSpace, refSpace);
+  
+      if (gripPose) {
+        let o = gripPose.transform.orientation;
+
+        if( i == 1){
+//          debugmsg("grip "+o.x+" "+o.y+" "+o.z+" "+o.w);
+          if( xrSelectedKnob != null){
+            xrSelectedKnob.setValue(o.z - xrCurZ[i]);
+          }else {
+            xrCurZ[i] = o.z;           // track current rotation 
+          }
+        }else {
+          xrCurZ[i] = o.z;           // track current rotation 
+        }
+      }
+    }
+
+
     let targetRayPose = frame.getPose(inputSource.targetRaySpace, refSpace);
 
-    if (!targetRayPose) {
-//      debugmsg("nt");
-      continue;
-    }
-    let i = (inputSource.handedness == "left") ? 0 : 1;
-    let targetRay = new Ray(targetRayPose.transform.matrix);
-    let grabDistance = 0.1+i*0.9; // 10 cm
-    let grabPos = vec3.fromValues(
-        targetRay.origin[0], //x
-        targetRay.origin[1], //y
-        targetRay.origin[2]  //z
-        );
-    vec3.add(grabPos, grabPos, [
-        targetRay.direction[0] * grabDistance,
-        targetRay.direction[1] * grabDistance + 0.06, // 6 cm up to avoid collision with a ray
-        targetRay.direction[2] * grabDistance,
-        ]);
+    if (targetRayPose) {
+      let targetRay = new Ray(targetRayPose.transform.matrix);
+      let grabDistance = 0.1+i*0.9; // 10 cm
+      let grabPos = vec3.fromValues(
+          targetRay.origin[0], //x
+          targetRay.origin[1], //y
+          targetRay.origin[2]  //z
+          );
+      vec3.add(grabPos, grabPos, [
+          targetRay.direction[0] * grabDistance,
+          targetRay.direction[1] * grabDistance + 0.06, // 6 cm up to avoid collision with a ray
+          targetRay.direction[2] * grabDistance,
+          ]);
 
-  
-    let gx = (grabPos[0] / roomwidth) * xrWidth + xrWidth/2;
-    let gy = (grabPos[1] / roomheight) * xrHeight + xrHeight/2;
-//    debugmsg("gx gy "+gx+" "+gy);
-    for(let bit of bits){
-      if( bit.grabbed ){
-        mx = gx;
-        my = xrHeight-gy;
-//        debugmsg("GMOVE "+mx+" "+my);
-        sketch.doMouseMove();
+    
+      let gx = (grabPos[0] / roomwidth) * xrWidth + xrWidth/2;
+      let gy = (grabPos[1] / roomheight) * xrHeight + xrHeight/2;
+  //    debugmsg("gx gy "+gx+" "+gy);
+      for(let bit of bits){
+        if( bit.grabbed ){
+          mx = gx;
+          my = xrHeight-gy;
+  //        debugmsg("GMOVE "+mx+" "+my);
+          sketch.doMouseMove();
+        }
       }
     }
 
@@ -1006,6 +1026,10 @@ function xrKnob()
   this.position = [0.0, 0.0, 0.0];
   this.scale = [0.1, 0.1, 1.0];
 
+  this.initValue = 128;
+  this.now = 0;                   // used to smooth out hover selection
+  this.hoverEnd = 0;
+
   this.visible = function(state)
   { let old=false;
     if( this.node != null){
@@ -1020,11 +1044,35 @@ function xrKnob()
     uniforms.baseColorFactor.value = [rc, gc, bc, ac];
   }
 
+
+  // called with a delta value.
+  this.setValue = function(val)
+  { let ctrl=null;
+
+//    debugmsg("Knob SV "+val);
+    if( this.bit != null){
+      ctrl = this.bit.ctrl;
+    }
+    if( ctrl == null){
+      return;
+    }
+
+    ctrl.values[this.index] = checkRange(this.initValue - val*300);
+
+  }
+
   // knobs
   this.update = function(time)
   { let ctrl=null;
     let node;
     let idx = this.index+this.index;
+    this.now = time;
+
+    if( xrSelectedKnob == this && !this.selected){
+      if( this.hoverEnd < time){
+        xrSelectedKnob = null;
+      }
+    }
 
     if( this.bit != null){
       ctrl = this.bit.ctrl;
@@ -1053,7 +1101,13 @@ function xrKnob()
     mat4.scale(node.matrix, node.matrix, this.scale);
 
     if( this.selected){
-      this.setColor( 1.0, 1.0, 1.0, 0.8);
+      if( xrSelectedKnob != this ){
+        // just selected.
+        this.initValue = this.value;
+//        debugmsg("init knob");
+      }
+      xrSelectedKnob = this;
+      this.setColor( 0.0, 1.0, 0.0, 1.0);
     }else {
       if( ac != this.oldac){
         if( ac == this.index ){
@@ -1075,6 +1129,20 @@ function xrKnob()
     this.index = idx;
     debugmsg("Link knob "+idx);
   }
+
+  this.onHoverStart = function()
+  { let us = this.knob;        // node is (this)
+    us.selected = true;
+//    debugmsg("KHS "+us.index);
+  }
+
+  this.onHoverEnd = function()
+  { let us = this.knob;        // node is (this)
+//    debugmsg("KHE "+us.index);
+    us.hoverEnd = us.now + 250;  // delay for 1/4 sec.
+    us.selected = false;
+  }
+
 
   this.setColor( 0.0, 0.0, 1.0, 1.0);
 
@@ -1149,6 +1217,10 @@ function createXRBit(bit)
       knob.depth = this.depth+0.01;
       this.knobs[i] = knob ; 
       scene.addNode( knob.node);
+      knob.node.onHoverStart = knob.onHoverStart;
+      knob.node.onHoverEnd = knob.onHoverEnd;
+      knob.node.knob = knob;
+      knob.node.selectable = true;
     }
 
   }
@@ -1280,14 +1352,16 @@ function createXRBit(bit)
         }
       }
     }
-    for(s of this.knobs){
-      s.selected = false;
-      if( hit == s.node){
-        s.selected = true;
-        this.selected = true;
-        return true;
-      }
-    }
+    // use hover
+//    for(s of this.knobs){
+//      debugmsg("Hit test knob"+s.index);
+//      s.selected = false;
+//      if( hit == s.node){
+//        s.selected = true;
+//        this.selected = true;
+//        return true;
+//      }
+//    }
     return false;
   }
 
