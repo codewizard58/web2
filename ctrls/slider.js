@@ -4,7 +4,6 @@
 // 10/19/24
 sliderBit.prototype = Object.create(control.prototype);
 
-
 function sliderBit(bit)
 {	control.call(this, bit);
 	this.bit = bit;
@@ -16,6 +15,7 @@ function sliderBit(bit)
 	this.sy = 0;
 	this.sval = 0;
 	this.name = "Slider";
+	this.values = [0];
 
 	this.setBounds = function()
 	{	let b = this.bit;
@@ -71,9 +71,18 @@ function sliderBit(bit)
 
 		if( func == 2){
 			b.value = checkRange(data);
+			this.values[0] = b.value;
 		}
 		return;
 
+	}
+
+	this.setDelta = function(data, chan)
+	{
+		if( chan == 2){
+			let d = this.values[0] + data;
+			this.setValue(d, chan);
+		}
 	}
 
 
@@ -133,6 +142,7 @@ function sliderBit(bit)
 		if( xval > xmax){
 			xval = xmax;
 		}
+
 		b.value = Math.floor( (xval * 256) / xmax);
 		displaying = null;
 

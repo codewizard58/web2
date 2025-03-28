@@ -20,6 +20,18 @@ let xrHeight = 0;
 let roomwidth = 0;
 let roomheight = 0;
 
+export function makeSelectable(obj, xtype)
+{
+  obj.node.xbit = obj;
+  obj.node.selectable = true;
+  obj.node.onHoverStart = onHoverStart;
+  obj.node.onHoverEnd = onHoverEnd;
+  obj.xtype = xtype;
+ 
+}
+
+
+
 export function map2Dto3D(xrW, xrH, roomW, roomH)
 {   
     xrWidth = xrW;
@@ -666,6 +678,29 @@ export function createXRWireNode(b_x, b_y, b_z, b_w, b_h, itype, image)
   }
 }
 
+function onHoverStart()
+{ let us;
+    us = this.xbit;        // node is (this)
+    us.selected = true;
+    xrSelected = us;
+  
+    if( us.hoverFunc != null){
+      us.hoverFunc(1);
+    }
+}
+  
+function onHoverEnd()
+{ let us = this.xbit;        // node is (this)
+    us.selected = false;
+    if( us.hoverFunc != null){
+      us.hoverFunc(0);
+    }
+    xrSelected = null;
+}
+  
+  
+  
+
 // laser harp
 // frame and laser beams.
 function laser(lx, ly, lz )
@@ -694,22 +729,6 @@ function laser(lx, ly, lz )
       scene.addNode(s.node);
       s.node.visible = true;
     }
-  }
-
-  this.onHoverStart = function()
-  { let us = this.laser;        // node is (this)
-    us.hover = true;
-    us.dirty = true;
-    if( us.frame != null){
-      us.frame.hover(1 + 1*us.idx);
-    }
-  }
-
-  this.onHoverEnd = function()
-  { let us = this.laser;        // node is (this)
-    us.hover = false;
-    us.dirty = true;
-    us.frame.hover(0);
   }
 
   this.hitTest = function(hit)
@@ -755,9 +774,9 @@ function laser(lx, ly, lz )
 
   }
 
-  this.sticks[0].node.onHoverStart = this.onHoverStart;
-  this.sticks[0].node.laser = this;
-  this.sticks[0].node.onHoverEnd = this.onHoverEnd;
+  this.sticks[0].node.onHoverStart = onHoverStart;
+  this.sticks[0].node.xbit = this;
+  this.sticks[0].node.onHoverEnd = onHoverEnd;
   
 }
 

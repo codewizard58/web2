@@ -106,8 +106,9 @@ function showMIDIinterfaces(inout, cur, id)
 		}
 		//  msg += "<option value='0'>Web Audio</option>\n";
 		msg += "<option value='0' "+isSelected(0, cur)+">Local</option>\n";
+		msg += "<option value='1' "+isSelected(0, cur)+">Net</option>\n";
 
-		cnt = 1;
+		cnt = 2;
 		l = MIDIoutdev_list.head;
 		while(l != null){
 			if(l.ob.connected == true){

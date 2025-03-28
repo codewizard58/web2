@@ -1,6 +1,7 @@
 ﻿<?php
   // 11/16/24
   // 11/24/24
+  // 3/25/25
   
   $port = "";
   $nonet = 0;
@@ -16,9 +17,14 @@
   }
 
   if( isset($_POST['savedata']) ){
+    if( isset($_POST['savename']) ){
+      $name = $_POST['savename'];
+    }else {
+      $name = saved.sbl;
+    }
 	  $data = $_POST['savedata'];
 	  header("Content-type: application/x-sbl");
-	  header("Content-disposition: application; filename=saved.sbl");
+	  header("Content-disposition: application; filename=$name");
 	  echo $data;
     die("");
   }
@@ -61,23 +67,20 @@
      if( $action == "code"){
        die("");
 
-    }else if( $action == "noteon"){
+    }else if( $action == "cv"){
       $note = $_POST['note'];
       $vel = $_POST['vel'];
-      
+      $chan = $_POST["chan"];
+
+      if( $vel <= 0){
+        $data[0]= 0x80+$chan;
+      }else {
+        $data[0] = 0x90+$chan;
+      }
+      $data[1] = $note;
+      $data[2] = $vel;
+
       die("");
-      echo "noteon($note, $vel)";
-     
-      if( $note >= 48 && $note <= 68){     
-        if( $vel == 0){
-          // note off
-          $data[0] = 0x80;
-          $vel = 0;
-        }else {
-          $data[0] = 0x90;
-        }
-        $data[1] = $note;
-        $data[2] = $vel;
         
         
         $senddata = implode( array_map( "chr", $data) );
@@ -90,7 +93,17 @@
             fpassthru($com7);
             fclose($com7);
         }
-      }
+      
+      die("");
+    }else if( $action == "cc"){
+      $chan = $_POST["chan"];
+      $cc = $_POST["cc"];
+      $val = $_POST["val"];
+
+      $data[0] = 0xb0 + $chan;
+      $data[1] = $cc;
+      $data[2] = $val;
+
       die("");
     }
     echo "Action=$action";

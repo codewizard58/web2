@@ -922,6 +922,7 @@ function lorenzBit(bit)
 		}
 	}
 
+	//lorenz
 	this.Draw = function()
 	{	const bit = this.bit;
 		let i;

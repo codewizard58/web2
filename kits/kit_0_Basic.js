@@ -87,8 +87,8 @@ function kit_basic()
 		112,	9, "Push switch",	"", 0x0011, "Input", 0, 1,		// 22
 		"control", "toggle_switch", 100, 50,"actionin",  "inputout" , null,  null,	// 29
 		113,	10, "Toggle switch",	"", 0x0011, "Input", 0, 1,		// 22
-		"control", "a_rotary",  100, 50,    "actionin", "actionout" , null,  null,	// 30
-		114,	8, "",				"", 0x0011, "Action", 0, 1,		// 22
+		"rotary", "a_rotary",  50, 50,    "actionin", "actionout" , null,  null,	// 30
+		114,	8, "Knob ",	"Round knob control", 0x0011, "Action", 0, 1,		// 22
 		"control", "graph", 200, 100,		"outputin", "outputout" ,"outputin",  null,		// 31
 		115,	11, "Line graph",	"", 0x0111, "Output", 0, 1,		// 22
 
@@ -196,7 +196,7 @@ this.kitctrlcodes = [
 			bit.ctrl = ct;
 			return ct;
 		}else if( ctrl == 8){
-			// slider
+			// rotary
 			ct = new rotaryBit( bit);
 			bit.ctrl = ct;
 			ct.setData();
@@ -401,6 +401,7 @@ this.kitctrlcodes = [
 		"or",			0xd,
 		"nand",			0xd,
 		"nor",			0xd,
+		"rotary",		0xd,
 		null, null
 	];
 

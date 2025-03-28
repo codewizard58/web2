@@ -35,6 +35,14 @@ var showsnaps = 1;
 var animatecolor = "#ffffff";	// debugging
 var startSound = false;		// cannot start sound yet.
 
+// 3/23/25
+let xrSelected = null;       // the selected bit/snap
+let xrSelectedKnob = null;   // the selected knob
+let xrOldSelected = null;    // cached for xrframe
+let xrOldDocktarget = null;
+
+
+//
 const POWERON=0;
 const POWEROFF=1;
 const MIDICV=4;
@@ -1789,7 +1797,7 @@ function Program()
 
 		this.needsend = 0;	
 		this.sendsize = 8;		// allow for 0xf0 S B P 0x06 seqh seql ver
-//		indicator_spin(5);
+		indicator_spin(5);
 
 		while( prog != null){
 			ibp = bp;
@@ -2113,6 +2121,10 @@ function getXY(e) {
     if (my < 0) my = 0;
 }
 
+function addMy(delta){
+	my += delta;
+    if (my < 0) my = 0;
+}
 
 function Snap(bit, side, x, srx, y, sry, w, h, idx)
 {
@@ -2255,7 +2267,7 @@ function Snap(bit, side, x, srx, y, sry, w, h, idx)
 		b.unMark();
 	
 		reLabel(sketch.blist);
-		EXECMODE = 2;
+		execmode = 2;
 	}
 
 	//snap
@@ -3427,6 +3439,60 @@ function Keyboard()
 	}
 }
 
+// find what the pointer is indicating.
+let hitBit = null;
+let hitSnap = null;
+let hitCtrl = null;
+
+function findHit(mx, my)
+{	let i;
+	let abit;
+	let actrl;
+	
+	i = sketch.blist ;
+	while( i != null ) {
+		abit = i.bit.HitTest(mx, my);
+		if( abit != null){
+			if( i.bit == abit){
+				if( i.bit.ctrl != null  ){
+					actrl = i.bit.ctrl.HitTest(mx, my);
+					if( actrl != null){
+						if( actrl != hitCtrl){
+//							debugmsg("Hit ctrl ");
+							hitCtrl = actrl;
+						}
+
+						hitBit = null;
+						hitSnap = null;
+						break;
+					}
+				}
+				if( hitBit != abit){
+					hitBit = abit;
+//					debugmsg("Hit Bit "+abit.name);
+				}
+				if( hitSnap != null){
+					hitSnap = null;
+				}
+				hitCtrl = null;
+			}else {
+				if( hitBit != null){
+					hitBit = null;
+				}
+				if( hitSnap != abit){
+//					debugmsg("Hit Snap ");
+					hitSnap = abit;
+				}
+				hitCtrl = null;
+			}
+			break;
+		}
+
+		i = i.next;
+	}
+
+}
+
 function Sketch() {
 	this.blist = null;			// list of bits.
 	this.bll = 0;
@@ -3579,9 +3645,68 @@ function Sketch() {
 		curctrl = null;
 
 		// DEBUG sketch.blist.print();
+		findHit(mx, my);
+
+		if( hitSnap != null){
+			hitSnap.setDxDy(mx, my);			// get the dx and dy for dragging
+			selected = hitSnap;
+			scanning = hitSnap;
+			docktarget = scanning.paired;
+			if( docktarget != null){
+				if( docktarget.bit.code != WIRE &&
+					scanning.bit.code != WIRE){
+					scanning.unDock();		// unlink the snap
+				}else {
+					debugmsg("Undock wire "+scanning.bit.code);
+					scanning.unDock();		// unlink the snap
+				}
+				sketch.drawProgram();
+			}
+			dragging = hitSnap.bit;
+
+			if( scanning != null){
+				docktarget = scanning.paired;
+				if( docktarget != null){
+					if( docktarget.bit.code != WIRE &&
+						scanning.bit.code != WIRE){
+						scanning.unDock();		// unlink the snap
+					}else {
+						debugmsg("Undock wire "+scanning.bit.code);
+						scanning.unDock();		// unlink the snap
+					}
+					sketch.drawProgram();
+				}
+			}
+			abit = hitSnap;
+		}
+
+		if( hitBit != null){
+			hitBit.setDxDy(mx, my);			// get the dx and dy for dragging
+			dragging = hitBit;
+			selected = hitBit;
+			scanning = null;
+
+			autosel = dragging;
+			autox = mx;
+			autoy = my;
+
+			abit = hitBit;
+		}
+		if( curctrl == null && hitCtrl != null  ){
+			curctrl = hitCtrl;
+			if( curctrl != null){
+				curctrl.startMove(mx, my);
+				selected = null;			// dont animate
+				scanning = null;			// not a snap
+				dragging = null;			// not dragging
+
+				curctrl.setData();
+				abit = curctrl;
+			}
+		}
 
 		i = sketch.blist ;
-        while( i != null ) {
+        while( i != null && false) {
 			abit = i.bit.HitTest(mx, my);
 			if( abit != null){
 				abit.setDxDy(mx, my);			// get the dx and dy for dragging
@@ -3645,11 +3770,15 @@ function Sketch() {
     }
 
     this.MouseDown = function(e) {
-
+		let ret = false;
+//		debugmsg("MD "+e.buttons);
         document.getElementById("canvas").focus();
-        getXY(e);
+		if( (e.buttons & 1)==1 ){
+	        getXY(e);
 
-		return sketch.doMouseDown();
+			ret = sketch.doMouseDown();
+		}
+		return ret;
 	}
 
 // sketch
@@ -3680,6 +3809,8 @@ function Sketch() {
 			return;
 		}
 
+		findHit(mx, my);
+
 		// looking for dragging wire snap.
 		// scaning == selected and dragging == wire
 //		if( selected != null && scanning == selected && dragging != null && dragging.ctrl != null){
@@ -3704,7 +3835,7 @@ function Sketch() {
 		}
 
 		if( curctrl != null){
-			curctrl.onMove();
+			curctrl.onMove(mx, my);
 			sx = 0;				// if control selected then not dragging...
 			sy = 0;
 			ldrag = null;
@@ -3755,21 +3886,12 @@ function Sketch() {
 			drawmode = 2;
 			indicator(255, 1);
 		}else {
-			i = sketch.blist;
-			indicator(160, 1);
-			while( i != null ) {
-				ahit = i.bit.HitTest(mx, my);
-				if( ahit != null){
-					cname = "pointer";
-					if( i.bit.ctrl != null){
-						if( i.bit.ctrl.HitTest(mx, my)){
-							cname = "crosshair";
-						}
-					}
-					i = null;
-				}else {
-					i = i.next;
-				}
+			if( hitCtrl != null){
+				cname = "crosshair";
+			}else if( hitBit != null){
+				cname = "pointer";
+			}else if( hitSnap != null){
+				cname = "pointer";
 			}
 		}
 
@@ -3786,8 +3908,12 @@ function Sketch() {
 
 // sketch
     this.MouseMove = function(e) {
-        getXY(e);
-		return sketch.doMouseMove();
+		let ret = false;
+//		if( (e.buttons & 1)==1 ){
+			getXY(e);
+			ret = sketch.doMouseMove();
+//		}
+		return ret;
 	}
 
 // sketch
@@ -3852,8 +3978,13 @@ function Sketch() {
     }
 
     this.MouseUp = function(e) {
+		let ret = false;
+
         getXY(e);
 		sketch.doMouseUp();
+
+		e.preventDefault();
+		e.stopPropagation();
 	}
 
     this.DblClick = function(e) {
@@ -4053,8 +4184,26 @@ function Sketch() {
 			}
 			sketch.doMouseUp();
 		}, false);
- 
 
+		this.canvas.addEventListener('wheel', (event) => {
+
+//			debugmsg("wheel");
+		  if( hitCtrl != null ){
+//			debugmsg("wheel 2");
+			if( hitCtrl.selknob > 0 ){
+//				debugmsg("wheel 3");
+				hitCtrl.setDelta(event.deltaY / 10, 1+hitCtrl.selknob );	// selknob 1 origin
+			}
+		  }
+
+		  event.preventDefault();
+		  event.stopPropagation();
+		});
+
+		this.canvas.addEventListener("contextmenu", (event) => {
+			event.preventDefault();
+		  });
+		
 		document.getElementById("canvasbox").style.cursor = "default";
 
 		cw = this.canvas.width;

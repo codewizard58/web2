@@ -37,7 +37,7 @@ import {Ray} from './js/render/math/ray.js';
 import WebXRPolyfill from './js/third-party/webxr-polyfill/build/webxr-polyfill.module.js';
 import { scale, set } from './js/third-party/gl-matrix/src/gl-matrix/mat2.js';
 import {createXRLorenzNode,  createXRMandelNode, createXRPlayerNode, createXRWireNode, map2Dto3D, 
-  mapX2XR, mapY2XR, mapW2XR, mapH2XR, xrBox, bitBuilder, setCtrlScene, createXRHarpNode} from './mods/xrctrls.js';
+  mapX2XR, mapY2XR, mapW2XR, mapH2XR, xrBox, bitBuilder, setCtrlScene, createXRHarpNode, makeSelectable} from './mods/xrctrls.js';
 
 
 'use strict';
@@ -46,8 +46,8 @@ import {createXRLorenzNode,  createXRMandelNode, createXRPlayerNode, createXRWir
  var xrOK = false;
  var xrCtrl = null;
  let xrRunning = false;
- let xrSelectedKnob = null;   // the selected knob
  let xrCurZ = [0, 0];
+
 
 // Called when the user clicks the button to enter XR. If we don't have a
 // session we'll request one, and if we do have a session we'll end it.
@@ -269,13 +269,13 @@ function onSessionStarted(session)
   button.visible(true);
   // scene.addNode(button.node);
   delButton = new createXRButton(0.0, 0.0, -1.0, 1, 1, "resources/images/remove.png");
-  delButton.visible(true);
+  delButton.visible(false);
   scene.addNode(delButton.node);
   flipButton = new createXRButton(0.0, 0.0, -1.0, 1, 1, "resources/images/flip.png");
-  flipButton.visible(true);
+  flipButton.visible(false);
   scene.addNode(flipButton.node);
   flipvButton = new createXRButton(0.0, 0.0, -1.0, 1, 1, "resources/images/flip-v1.png");
-  flipvButton.visible(true);
+  flipvButton.visible(false);
   scene.addNode(flipvButton.node);
 
   selButton = new createXRSelNode(0.15, 0.15, -0.9, 0.3, 0.3, [ 0.0, 1.0, 0.0, .9]);
@@ -411,7 +411,7 @@ function  onXRSelectStart(ev)
 
   let hitResult = scene.hitTest(targetRayPose.transform);
   if (hitResult) {
-   // Check to see if the hit result was one of our boxes.
+    // Check to see if the hit result was one of our boxes.
 
     for(let bit of bits){
       bit.hitTest(hitResult.node);
@@ -424,18 +424,18 @@ function  onXRSelectStart(ev)
       playerInWorldSpaceNew[2] = hitResult.intersection[2];
     }
 
-   quat.identity(rotationDeltaQuat);
-   quat.rotateY(rotationDeltaQuat, rotationDeltaQuat, rotationDelta * Math.PI / 180);
-   vec3.transformQuat(playerOffsetInWorldSpaceNew, playerOffsetInWorldSpaceOld, rotationDeltaQuat);
-   trackingSpaceHeadingDegrees += rotationDelta;
+    quat.identity(rotationDeltaQuat);
+    quat.rotateY(rotationDeltaQuat, rotationDeltaQuat, rotationDelta * Math.PI / 180);
+    vec3.transformQuat(playerOffsetInWorldSpaceNew, playerOffsetInWorldSpaceOld, rotationDeltaQuat);
+    trackingSpaceHeadingDegrees += rotationDelta;
 
-   // Update tracking space origin so that origin + playerOffset == player location in world space
-   vec3.sub(
-     trackingSpaceOriginInWorldSpace,
-     playerInWorldSpaceNew,
-     playerOffsetInWorldSpaceNew);
+    // Update tracking space origin so that origin + playerOffset == player location in world space
+    vec3.sub(
+      trackingSpaceOriginInWorldSpace,
+      playerInWorldSpaceNew,
+      playerOffsetInWorldSpaceNew);
 
-   updateOriginOffset(session);
+    updateOriginOffset(session);
 
   }
 }
@@ -451,67 +451,6 @@ function onXRSelectEnd(ev) {
 
 function onXRSelect(ev) {
   let i = (ev.inputSource.handedness == "left") ? 0 : 1;
-  let session = ev.frame.session;
-  let refSpace = ev.frame.session.isImmersive ? getRefSpace(session, true) : xrInlineRefSpace;
-
-  let headPose = ev.frame.getPose(xrViewerSpaces[session.mode], refSpace);
-  if (headPose){
-    // Get the position offset in world space from the tracking space origin
-    // to the player's feet. The headPose position is the head position in world space.
-    // Subtract the tracking space origin position in world space to get a relative world space vector.
-    vec3.set(playerInWorldSpaceOld, headPose.transform.position.x, 0, headPose.transform.position.z);
-    vec3.sub(
-      playerOffsetInWorldSpaceOld,
-      playerInWorldSpaceOld,
-      trackingSpaceOriginInWorldSpace);
-  }
-
-  // based on https://github.com/immersive-web/webxr/blob/master/input-explainer.md#targeting-ray-pose
-  // let targetRayPose = ev.frame.getPose(ev.inputSource.targetRaySpace, refSpace);
-  let inputSourcePose = ev.frame.getPose(ev.inputSource.targetRaySpace, refSpace);
-  if (!inputSourcePose) {
-    return;
-  }
-  
-  // Hit test results can change teleport position and orientation.
-  let hitResult = scene.hitTest(inputSourcePose.transform);
-  if( hitResult != null){
-    setSelecting(1+i);
-    for(let bit of bits){
-      bit.hitTest(hitResult.node);
-    }
-  }
-
-  // teleport
-  if( floorNode != null)
-  {
-    vec3.copy(playerInWorldSpaceNew, playerInWorldSpaceOld);
-    let rotationDelta = 0;
-
-  if( hitResult != null){
-    if (hitResult.node == floorNode) {
-        // New position uses x/z values of the hit test result, keeping y at 0 (floor level)
-        playerInWorldSpaceNew[0] = hitResult.intersection[0];
-        playerInWorldSpaceNew[1] = 0;
-        playerInWorldSpaceNew[2] = hitResult.intersection[2];
-        debugmsg('teleport to'+ playerInWorldSpaceNew);
-    }
-
-
-    quat.identity(rotationDeltaQuat);
-    quat.rotateY(rotationDeltaQuat, rotationDeltaQuat, rotationDelta * Math.PI / 180);
-    vec3.transformQuat(playerOffsetInWorldSpaceNew, playerOffsetInWorldSpaceOld, rotationDeltaQuat);
-    trackingSpaceHeadingDegrees += rotationDelta;
-
-    // Update tracking space origin so that origin + playerOffset == player location in world space
-    vec3.sub(
-      trackingSpaceOriginInWorldSpace,
-      playerInWorldSpaceNew,
-      playerOffsetInWorldSpaceNew);
-
-      updateOriginOffset(session);
-    }
-  }
 
 }
 
@@ -524,6 +463,19 @@ function  onXRSqueezeStart (ev)
     return;
   }
 
+  if( xrSelected != null){
+    debugmsg("Squeeze "+xrSelected.xtype);
+
+    if( xrSelected.xtype == "snap"){
+      let sn = xrSelected.snap;
+      mx = sn.x+5;
+      my = sn.y+5;
+      debugmsg("Snap grabbed mx="+mx+" my="+my);
+      sketch.doMouseDown();
+      return;
+    }
+  }
+
   let hitResult = scene.hitTest(targetRayPose.transform);
   if (hitResult) {
 
@@ -534,23 +486,7 @@ function  onXRSqueezeStart (ev)
         bit.dragPos = bit.position;
         mx = b.x+5;
         my = b.y+5;
-//        debugmsg("Bit grabbed "+b,name+" mx="+mx+" my="+my);
-      }
-      if( !bit.grabbed){
-        for(let s=0; s < 4; s++){
-          if ( bit.snaps[s] != null && hitResult.node == bit.snaps[s].node ){
-            bit.grabbed = true;
-            bit.dragPos = bit.position;
-            mx = b.snaps[s].x+5;
-            my = b.snaps[s].y+5;
-//            debugmsg("Snap grabbed mx="+mx+" my="+my);
-            break;
-          }
-        }
-      }
-      if( bit.grabbed){
-        sketch.doMouseDown();
-        break;
+        debugmsg("Bit grabbed "+b,name+" mx="+mx+" my="+my);
       }
    }
   }
@@ -614,7 +550,7 @@ function onXRFrame (time, frame) {
 
   let refSpace = session.isImmersive ?  getRefSpace(session, true) : xrInlineRefSpace;
 
-  if (!session.isImmersive ) {
+  if (!session.isImmersive || true) {
     refSpace = getAdjustedRefSpace(refSpace);
   }
 
@@ -651,6 +587,7 @@ function onXRFrame (time, frame) {
       if( msg != ""){
         debugmsg("gamepad "+msg+" "+(buttons ? buttons.length: 0));
       }
+      rotateView(axes[2]*5, 0);   // horizontal rotate
     }
     if (inputSource.gripSpace) {
       const gripPose = frame.getPose(inputSource.gripSpace, refSpace);
@@ -659,11 +596,14 @@ function onXRFrame (time, frame) {
         let o = gripPose.transform.orientation;
 
         if( i == 1){
+          // turn a knob.
 //          debugmsg("grip "+o.x+" "+o.y+" "+o.z+" "+o.w);
-          if( xrSelectedKnob != null){
-            xrSelectedKnob.setValue(o.z - xrCurZ[i]);
-          }else {
-            xrCurZ[i] = o.z;           // track current rotation 
+          if( xrSelected != null){
+            if( xrSelected.xtype == "knob"){
+              xrSelected.setValue(o.z - xrCurZ[i]);
+            }else {
+              xrCurZ[i] = o.z;           // track current rotation 
+            }
           }
         }else {
           xrCurZ[i] = o.z;           // track current rotation 
@@ -682,13 +622,14 @@ function onXRFrame (time, frame) {
           targetRay.origin[1], //y
           targetRay.origin[2]  //z
           );
-      vec3.add(grabPos, grabPos, [
+      if (session.isImmersive ) {
+          vec3.add(grabPos, grabPos, [
           targetRay.direction[0] * grabDistance,
           targetRay.direction[1] * grabDistance + 0.06, // 6 cm up to avoid collision with a ray
           targetRay.direction[2] * grabDistance,
           ]);
+      }
 
-    
       let gx = (grabPos[0] / roomwidth) * xrWidth + xrWidth/2;
       let gy = (grabPos[1] / roomheight) * xrHeight + xrHeight/2;
   //    debugmsg("gx gy "+gx+" "+gy);
@@ -696,7 +637,7 @@ function onXRFrame (time, frame) {
         if( bit.grabbed ){
           mx = gx;
           my = xrHeight-gy;
-  //        debugmsg("GMOVE "+mx+" "+my);
+//          debugmsg("GMOVE "+mx+" "+my);
           sketch.doMouseMove();
         }
       }
@@ -704,6 +645,8 @@ function onXRFrame (time, frame) {
 
   }
 
+
+  // update based on  sketch.
   let bit;
   let i;
   let anysel = false;
@@ -713,40 +656,46 @@ function onXRFrame (time, frame) {
   let dockidx = -1;
   let d = -1;
 
-  if( selected != null){
-    drag = selected.getDrag();
-    if( drag != selected){
-      for(i=0; i < drag.snaps.length; i++){
-        if( drag.snaps[i] == selected){
-          snidx = i;
-          break;
+  if( selected != null ){       // global
+    if( xrOldSelected != selected){
+      drag = selected.getDrag();
+      if( drag != selected){
+        for(i=0; i < drag.snaps.length; i++){
+          if( drag.snaps[i] == selected){
+            snidx = i;
+            break;
+          }
         }
+        // snap selected
+        scanner.visible(true);
+        decoration(drag, 0);
+      }else {
+        // bit selected
+        scanner.visible(false);
+        decoration(drag, 1);
       }
-      // snap selected
-      scanner.visible(true);
-      decoration(drag, 0);
-    }else {
-      // bit selected
-      scanner.visible(false);
-      decoration(drag, 1);
+//      xrOldSelected = selected;
     }
   }else {
     // nothing selected
       scanner.visible(false);
       decoration(null, 0);
   }
-  if( docktarget != null){
-    dock = docktarget.getDrag();
-    if( dock != docktarget){
-      for(i=0; i < dock.snaps.length; i++){
-        if( dock.snaps[i] == docktarget){
-          dockidx = i;
-          break;
+  if( docktarget != null ){
+    if( xrOldDocktarget != docktarget){
+      dock = docktarget.getDrag();
+      if( dock != docktarget){
+        for(i=0; i < dock.snaps.length; i++){
+          if( dock.snaps[i] == docktarget){
+            dockidx = i;
+            break;
+          }
         }
+        docker.visible(true);
+      }else if(docker != null){
+        docker.visible(false);
       }
-      docker.visible(true);
-    }else if(docker != null){
-      docker.visible(false);
+      xrOldDocktarget = docktarget;
     }
   }else if(docker != null){
     docker.visible(false);
@@ -776,7 +725,7 @@ function onXRFrame (time, frame) {
         }else {
           bit.snapidx = -1;
         }
-        bit.selected = s;
+        bit.selectedBit = s;
         bit.dockidx = d;
         break;
       }
@@ -813,6 +762,7 @@ function onXRFrame (time, frame) {
   }
 
   scene.updateInputSources( frame, refSpace);
+//  xrUpdateInputSources(frame, refSpace);
  // XRupdateInputSources(session, frame, refSpace);
 
   scene.drawXRFrame(frame, pose);
@@ -822,10 +772,8 @@ function onXRFrame (time, frame) {
 
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////////////
 // interface to bits world
-
 
 ///
 function createXRSnap(snap, b_z, image)
@@ -833,6 +781,9 @@ function createXRSnap(snap, b_z, image)
   this.snap = snap;
   this.depth = b_z;
   this.index = 0;
+  this.selected = false;
+  this.grabbed = false;
+  this.xtype = "snap";
 
 
   this.visible = function(state)
@@ -843,6 +794,21 @@ function createXRSnap(snap, b_z, image)
     }
     return old;
   }
+
+  this.doHover = function(mode)
+  {    
+    debugmsg("Hover snap "+this.index+" "+mode);
+
+    if( mode == 0){
+      xrSelected = null;
+      hitSnap = null;
+
+    }else {
+      hitSnap = this.snap;
+    }
+    hitBit = null;
+    hitCtrl = null;
+}
 
   this._update = function()
   {
@@ -877,6 +843,7 @@ function createXRSnap(snap, b_z, image)
   });
 
   this._update();
+  this.hoverFunc = this.doHover;
 
 }
 
@@ -900,6 +867,7 @@ function createXRBitNode(b_x, b_y, b_z, b_w, b_h, itype, image)
   this.dragPos = null;
   this.grabbed = false;
   this.selected = false;
+  this.hoverFunc = null;
 
   // Create a button that plays the video when clicked.
   this.node = new BitNode(this.texture, () => {
@@ -915,6 +883,7 @@ function createXRBitNode(b_x, b_y, b_z, b_w, b_h, itype, image)
     return old;
   }
 
+  // bitnode the image.. 
   this.hitTest = function(hit)
   {
     this.selected = false;
@@ -1027,6 +996,7 @@ function xrKnob()
   this.scale = [0.1, 0.1, 1.0];
 
   this.initValue = 128;
+  this.hoverFunc = null;
   this.now = 0;                   // used to smooth out hover selection
   this.hoverEnd = 0;
 
@@ -1037,6 +1007,15 @@ function xrKnob()
       this.node.visible = state;
     }
     return old;
+  }
+
+  this.doHover = function(mode)
+  { let ctrl = this.bit.ctrl;
+    debugmsg("Hover knob "+this.index+" "+mode);
+    hitCtrl = ctrl;
+    ctrl.selknob = this.index+1;    // 1 origin
+    hitBit = null;
+    hitSnap = null;
   }
 
   this.setColor = function(rc,gc,bc,ac)
@@ -1067,10 +1046,15 @@ function xrKnob()
     let node;
     let idx = this.index+this.index;
     this.now = time;
+    this.xtype = "knob";
 
-    if( xrSelectedKnob == this && !this.selected){
-      if( this.hoverEnd < time){
-        xrSelectedKnob = null;
+    if( xrSelected == this){
+      if( !this.selected){
+        if( this.hoverEnd < time){
+          xrSelected = null;
+        }
+      }else {
+        this.hoverEnd = time+250;   // 1/4 second
       }
     }
 
@@ -1100,15 +1084,12 @@ function xrKnob()
     mat4.rotateZ(node.matrix, node.matrix, -(this.value-135) * Math.PI / 180);
     mat4.scale(node.matrix, node.matrix, this.scale);
 
-    if( this.selected){
-      if( xrSelectedKnob != this ){
-        // just selected.
-        this.initValue = this.value;
-//        debugmsg("init knob");
-      }
-      xrSelectedKnob = this;
+    if( this.selected){         // possible time delayed by up to 1/4 sec to fight wobble.
+      xrSelected = this;
       this.setColor( 0.0, 1.0, 0.0, 1.0);
     }else {
+      this.initValue = this.value;        // keep track when not selected.
+
       if( ac != this.oldac){
         if( ac == this.index ){
           this.setColor( 1.0, 0.0, 0.0, 0.8);
@@ -1130,21 +1111,8 @@ function xrKnob()
     debugmsg("Link knob "+idx);
   }
 
-  this.onHoverStart = function()
-  { let us = this.knob;        // node is (this)
-    us.selected = true;
-//    debugmsg("KHS "+us.index);
-  }
-
-  this.onHoverEnd = function()
-  { let us = this.knob;        // node is (this)
-//    debugmsg("KHE "+us.index);
-    us.hoverEnd = us.now + 250;  // delay for 1/4 sec.
-    us.selected = false;
-  }
-
-
   this.setColor( 0.0, 0.0, 1.0, 1.0);
+  this.hoverFunc = this.doHover;
 
 }
 
@@ -1167,7 +1135,7 @@ function createXRBit(bit)
   this.marked = false;
   let s;
   this.boxNode = null;
-  this.selected = null;
+  this.selectedBit = null;
   this.snapidx = -1;
   this.dockidx = -1;
   this.renderPrimitive = null;
@@ -1217,10 +1185,7 @@ function createXRBit(bit)
       knob.depth = this.depth+0.01;
       this.knobs[i] = knob ; 
       scene.addNode( knob.node);
-      knob.node.onHoverStart = knob.onHoverStart;
-      knob.node.onHoverEnd = knob.onHoverEnd;
-      knob.node.knob = knob;
-      knob.node.selectable = true;
+      makeSelectable( knob, "knob");
     }
 
   }
@@ -1279,8 +1244,10 @@ function createXRBit(bit)
   if( this.bnode == null){
     if( image != null){
       this.bnode = new createXRBitNode(mapx, mapy-ah, -1.1, mapw, maph, 1, image);
+      this.bnode.bit = bit;
     }else {
       this.bnode = new createXRBitNode(mapx, mapy-ah, -1.1, mapw, maph, 0, "resources/bits/"+img);
+      this.bnode.bit = bit;
     }
   }
   this.bnode.visible(true);
@@ -1292,14 +1259,18 @@ function createXRBit(bit)
   // add snaps as children
   for(s = 0; s < this.snaps.length; s++){
     if( this.snaps[s] != null){
-      this.snaps[s].visible(true);
-      scene.addNode(this.snaps[s].node);
+      let sn = this.snaps[s];
+      sn.visible(true);
+      scene.addNode(sn.node);
+      makeSelectable(sn, "snap");
     }
   }
 
   if( this.bnode.node != null){
-    this.bnode.node.selectable = true;
-    scene.addNode(this.bnode.node);
+    let bn = this.bnode;
+    bn.node.selectable = true;
+    scene.addNode(bn.node);
+    makeSelectable( bn, "bit");
   }
 
   this.remove = function()
@@ -1327,6 +1298,7 @@ function createXRBit(bit)
 
   }
 
+  // xrbit the collection of stuff.
   this.hitTest = function(hit)
   {
     let s;
@@ -1338,6 +1310,10 @@ function createXRBit(bit)
       if(node.node == hit){
         this.selected = true;
         debugmsg("HIT BIT "+this.bit.name);
+
+        hitBit = this.bit;
+        hitCtrl = null;
+        hitSnap = null;
         return true;
       }
     }
@@ -1347,21 +1323,12 @@ function createXRBit(bit)
         let sn = this.snaps[s];
         if (hit == sn.node) {
           this.selected = true;
-          debugmsg("HIT snap "+s+" "+this.bit.name);
+          debugmsg("HIT snap "+s+" "+this.bit.name+" "+sn.selected);
           return true;
         }
       }
     }
     // use hover
-//    for(s of this.knobs){
-//      debugmsg("Hit test knob"+s.index);
-//      s.selected = false;
-//      if( hit == s.node){
-//        s.selected = true;
-//        this.selected = true;
-//        return true;
-//      }
-//    }
     return false;
   }
 
@@ -1422,8 +1389,8 @@ function createXRBit(bit)
       mat4.scale(node.matrix, node.matrix, this.scalebox);
     }
 
-    if( this.selected != null){
-      node = this.selected.node;
+    if( this.selectedBit != null){
+      node = this.selectedBit.node;
       mat4.identity(node.matrix);
       mat4.translate(node.matrix, node.matrix, positionsel);
 //      mat4.rotateZ(node.matrix, node.matrix, time/1500);
@@ -1592,10 +1559,11 @@ function xrGetXY(e) {
 function addInlineViewListeners(canvas) {
 
   canvas.addEventListener('mousedown', (event) => {
-    // Only rotate when the right button is pressed
     canvas.focus();
-    xrGetXY(event);
-    sketch.doMouseDown();
+    if ( (event.buttons & 1) == 1) {
+      xrGetXY(event);
+      sketch.doMouseDown();
+    }
     event.preventDefault();
     event.stopPropagation();
 
@@ -1604,6 +1572,7 @@ function addInlineViewListeners(canvas) {
   canvas.addEventListener('mouseup', (event) => {
     xrGetXY(event);
     sketch.doMouseUp();
+
     event.stopPropagation();
     event.preventDefault();
   });
@@ -1611,7 +1580,7 @@ function addInlineViewListeners(canvas) {
   canvas.addEventListener('mousemove', (event) => {
     if ( (event.buttons & 2) == 2) {
       rotateView(event.movementX, event.movementY);
-    }else{
+    }else if ( (event.buttons & 1) == 1) {
       xrGetXY(event);
       sketch.doMouseMove();
     }
@@ -1620,7 +1589,16 @@ function addInlineViewListeners(canvas) {
   });
 
   canvas.addEventListener('wheel', (event) => {
-//      debugmsg("Wheel "+event.deltaY);
+    if( hitCtrl != null ){
+  //			debugmsg("wheel 2");
+        if( hitCtrl.selknob > 0 ){
+  //				debugmsg("wheel 3");
+          hitCtrl.setDelta(event.deltaY / 10, 1+hitCtrl.selknob );	// selknob 1 origin
+        }
+    }
+ 
+    event.preventDefault();
+    event.stopPropagation();
   });
 
   // Keep track of touch-related state so that users can touch and drag on
@@ -1698,6 +1676,10 @@ function addInlineViewListeners(canvas) {
     return false;
    });
 
+  canvas.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+  });
+
 
 }
 
@@ -1760,7 +1742,7 @@ function xrBit(bit)
 {	control.call(this, bit);
 	this.bit = bit;
   this.dragging = null;
-  this.selected = null;
+  this.selectedBit = null;
   this.scanning = null;
   this.vctx = null;
   this.image = null;

@@ -395,6 +395,7 @@ function control(bit)
 	this.imagename = null;
 	this.knobs = [];		// coordinate pairs
 	this.values = [];		// values of knobs
+	this.selknob = 0;		// 1 offset
 
 	// control
 	this.isbit = function()
@@ -709,6 +710,21 @@ this.undockfrom = function(from, dom)
 	{
 		return this.bit.value;
 	}
+
+	// adjust a value by a delta.
+	this.setDelta = function(data, chan)
+	{	let d = 1*data;
+		let c = 1*chan;
+
+		if( c > 1){
+//			debugmsg("delta "+data+" "+chan);
+			this.setValue( 1*this.values[chan-2]+d, c );
+		}
+
+	}
+
+
+
 	//control
 
 	this.startProg = function()

@@ -3,6 +3,8 @@
 
 // manage how notes are distributed
 
+const MAXMIDIDEV = 10;
+
 // null midi output interface
 function MIDInoOutput()
 {	this.sending = 0;
@@ -97,6 +99,102 @@ function localMidiOut()
 				}
 			// send msg
 			debugmsg("Local send "+msg.length+" "+code.toString(16));
+		}else {
+			debugmsg("Sending > 1 "+this.sending);
+		}
+		this.sending--;
+	}
+
+}
+
+
+// network Midi output handler.
+var netOut = null;
+function netMidiSend(mode, func, arg, arg1, arg2)
+{
+	debugmsg("Net send");
+}
+
+
+function netMidiOut()
+{	this.sending = 0;
+
+	this.send = function(msg)
+	{	let code = msg[0] & 0xf0;
+		let msg3 = [0,0,0];
+		let msg2 = [0,0];
+
+//		debugmsg("NETOUT["+msg.length+"] "+msg[0].toString(16)+" "+msg[1].toString(16));
+
+		this.sending++;
+		if( this.sending < 2){
+			switch( code){
+				case 0x90:
+					if( msg[2] != 0){
+						netMidiSend(1, msg[0]&0xf, msg[1], msg[2], 0);
+						this.sending--;
+						return;
+					}
+					// note on with vel ==0 is a noteoff.
+					msg[0] = (msg[0] & 0xf ) | 0x80;
+					msg[2] = 0;
+					netMidiSend(0, msg[0]&0xf, msg[1], msg[2], 0);
+					this.sending--;
+					return;
+
+				case 0x80:
+					netMidiSend(0, msg[0]&0xf, msg[1], msg[2], 0);
+					this.sending--;
+					return;
+
+				case 0xa0:				// 
+					this.sending--;
+					return;
+			
+				case 0xb0:		// control change
+//					debugmsg("Local out CC"+msg[1]+" "+msg[2]);
+					msg3[0] = msg[0];
+					msg3[1] = msg[1];
+					msg3[2] = msg[2];
+			
+					if( msg[1] == 106 ){
+						prognum = (prognum - 1) & 0x7f;
+						msg2[0] = 0xc0 | (msg[0] & 0xf);
+						msg2[1] = prognum;
+						if( msg[2] == 127){
+							netMidiSend(3, msg[0]&0xf, msg2[0], msg2[1], 0);
+						}
+						this.sending--;
+						return;
+					}else if( msg[1] == 107 ){
+						prognum = (prognum + 1) & 0x7f;
+						msg2[0] = 0xc0 | (msg[0] & 0xf);
+						msg2[1] = prognum;
+						if( e.data[2] == 127){
+							netMidiSend(4, msg[0]&0xf, msg2[0], msg2[1], 0, dev);
+						}
+						this.sending--;
+						return;
+					}
+			// xdebugmsg = "MidiIN "+msg+"["+(e.data[0]&0x0f)+"] "+e.data[1]+" "+e.data[2];
+					netMidiSend(2, msg[0]&0xf, msg3[1], msg3[2], 0);
+			
+					this.sending--;
+					return;
+				case 0xc0:
+					this.sending--;
+					return;
+		
+				case 0xd0:
+					this.sending--;
+					return;
+
+				case 0xe0:
+					this.sending--;
+					return;
+				}
+			// send msg
+			debugmsg("Netl send "+msg.length+" "+code.toString(16));
 		}else {
 			debugmsg("Sending > 1 "+this.sending);
 		}
@@ -205,6 +303,18 @@ function selMIDIoutdev(dev)
 			useMIDIout = localOut;
 		}
 // debugmsg("sel local");
+		return useMIDIout;
+	}
+	if( dev == 1){
+		if(netOut == null){
+			useMIDIout = new MIDIoutputobj(null);
+			useMIDIout.output = new netMidiOut();
+			netOut = useMIDIout;
+			MIDIoutdev_list.addobj(netOut, null);
+		}else {
+			useMIDIout = netOut;
+		}
+// debugmsg("sel networkl");
 		return useMIDIout;
 	}
 	while( l != null){
@@ -1216,7 +1326,7 @@ function findMIDIinterface(cur)
 {	let md = null;
 	let l;
 
-	if( cur < 10){
+	if( cur < MAXMIDIDEV){
 		md = MIDIindev[cur];
 	}else {
 		l = noteGroups_list.head;

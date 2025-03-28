@@ -1,83 +1,58 @@
 // 10/19/24
 // rotary.js
 
+rotaryBit.prototype = Object.create(control.prototype);
 function rotaryBit(bit)
-{	this.bit = bit;
-	this.l = 0;
-	this.r = 0;
-	this.t = 0;
-	this.b = 0;
+{	control.call(this, bit);
+	this.bit = bit;
 	this.sx = 0;
 	this.sy = 0;
 	this.sval = 0;
+	this.knobs = [25, 25];
+	this.values = [0];
+	this.initx = 0;
+	this.inity = 0;
+	this.ival = 0;
+	this.selstep = 0;
+
+	let imagename = "rotary";
+	this.bitimg =this.bit.findImage(imagename);
+	this.bitname = imagename;
 	this.name = "Rotary";
 
-	this.setBounds = function()
-	{	var b = this.bit;
-		var bt;
+	//rotary
+	this.setValue = function(data, func)
+	{	let b = this.bit;
 
-		if( b == null){
-			return;
+		if( func == 2){
+			b.value = checkRange(data);
+			this.values[0] = b.value;
+//			debugmsg("R SV "+data+" "+func);
 		}
-		bt = b.btype & 7;	// 0 = horiz, 1 == vert
+		return;
 
-		if( bt == 0){
-			this.l = b.x;
-			this.r = b.x+b.w;
-			this.t = b.y+(b.h/2)-10;
-			this.b = this.t+20;
-		}else {
-			this.l = b.x+(b.w/2)-10;
-			this.r = this.l+20;
-			this.t = b.y;
-			this.b = b.y+b.h;
+	}
+
+	this.HitTest = function(mx, my)
+	{	let ret = soundHitTest(this, mx, my);
+
+		if( ret != null){
+			this.selstep = 1;
+			this.initx = mx;
+			this.inity = my;
+			this.ival = this.values[0];
 		}
+		return ret;
+
 	}
 
 	this.Draw = function( )
-	{	var b = this.bit;
-		var bt;
-		var xval = b.value;		// 0 - 255
+	{	const b = this.bit;
 
 		if( b == null){
 			return;
 		}
-		bt = b.btype & 7;	// 0 = horiz, 1 == vert
-//		message("Draw slider "+ xval);
-
-        ctx.fillStyle = "#ffffff";
-		if( bt == 0){
-			xval = Math.floor( (xval * (b.w-10))/ 255);
-	        ctx.fillRect(b.x,  b.y+(b.h/2)-10, b.w, 20);
-	        ctx.fillStyle = "#000000";
-	        ctx.fillRect(b.x,  b.y+(b.h/2)-1, b.w, 2);
-	        ctx.fillRect(b.x+xval,  b.y+(b.h/2)-15, 10, 30);
-		}else {
-			xval = Math.floor( (xval * (b.h-10))/ 255);
-	        ctx.fillRect(b.x+(b.w/2)-10, b.y, 20, b.h);
-	        ctx.fillStyle = "#000000";
-	        ctx.fillRect(b.x+(b.w/2)-1, b.y, 2, b.h);
-	        ctx.fillRect(b.x+(b.w/2)-15, b.y+b.h-xval-10, 30, 10);	// 255 at top..
-		}
-	}
-
-	this.HitTest = function(x, y)
-	{	var res = null;
-		var i;
-		var b = this.bit;
-		var bt;
-
-		if( b == null){
-			return;
-		}
-		bt = b.btype & 7;	// 0 = horiz, 1 == vert
-		this.setBounds();
-		
-		if( x >= this.l && x <= this.r &&
-		    y >= this.t && y <= this.b){
-			res = this;
-		}
-		return res;
+		soundDraw(this, b);
 	}
 
 	this.getData = function()
@@ -88,39 +63,21 @@ function rotaryBit(bit)
 	{
 	}
 
-	this.onMove = function()
-	{	var b = this.bit;
-		var bt;
-		var xval;
-		var xmax;
+	this.onMove = function(x, y)
+	{	let vx = x - this.initx;
+		let vy = y - this.inity;
+		let val = 0;
+		let f = null;
 
-		if( b == null){
-			return;
-		}
-		bt = b.btype & 7;	// 0 = horiz, 1 == vert
-
-		if( bt == 0){
-			xval = mx - this.sx + this.sval;
-			xmax = b.w-10;
-		}else {
-			xval = this.sy - my + this.sval;
-			xmax = b.h-10;
-		}
-
-//		message("Move: "+xval+" "+this.sval+" "+this.sx);
-
-		if( xval < 0){
-			xval = 0;
-		}
-		if( xval > xmax){
-			xval = xmax;
-		}
-		b.value = Math.floor( (xval * 256) / xmax);
-//		display(b);
-		displaying = null;
+		val = rotaryvalue(vx, vy, this.ival);
+		this.setValue(val, 2);
 
 		if( miditargeting != null){
-			o = midiAddTarget(this, this.selknob-1);
+			midiAddTarget(this, 0);
+		}
+
+		if( bitformaction != this){
+			return;
 		}
 
 	}
